@@ -4,8 +4,11 @@ import Audio exposing (AudioCmd)
 import Browser
 import Browser.Events
 import Duration exposing (Duration)
-import Element exposing (Element, centerX, column, el, fill, height, padding, spacing, text, width)
+import Element exposing (Element, alignBottom, centerX, centerY, column, el, fill, height, padding, row, spacing, text, width)
 import Element.Background as Background
+import Element.Border as Border
+import Element.Font as Font
+import Element.Input as Input
 import Json.Decode
 import Json.Encode
 import Quantity
@@ -18,7 +21,7 @@ type alias Flags =
 
 type alias Model =
     { workTime : Duration
-    , fraction : Int
+    , divisor : Float
     , currentState : State
     , now : Time.Posix
     , sound : SoundState
@@ -34,7 +37,7 @@ type SoundState
 type State
     = Stopped
     | Working
-        { from : Time.Posix
+        { startedFrom : Time.Posix
         , bankedBreakTime : Duration
         }
     | OnBreak { endsOn : Time.Posix }
@@ -106,15 +109,11 @@ title { now, currentState } =
         Stopped ->
             "Stopped"
 
-        Working { from } ->
-            "Working"
-                ++ ": "
-                ++ formatDuration (Duration.from from now)
+        Working { startedFrom } ->
+            "Working: " ++ formatDuration (Duration.from startedFrom now)
 
         OnBreak { endsOn } ->
-            "On break"
-                ++ ": "
-                ++ formatDuration (Duration.from now endsOn)
+            "On break: " ++ formatDuration (Duration.from now endsOn)
 
 
 formatDuration : Duration -> String
@@ -130,9 +129,11 @@ formatDuration duration =
 
     else
         let
+            f : Int -> String
             f n =
                 String.padLeft 2 '0' (String.fromInt n)
 
+            mmSs : String
             mmSs =
                 f (seconds // 60 |> modBy 60) ++ ":" ++ f (seconds |> modBy 60)
         in
@@ -159,6 +160,7 @@ view model =
         , spacing 8
         , centerX
         , padding 8
+        , Font.color (Element.rgb255 0xFF 0xFF 0xFF)
         , Background.color
             (case model.currentState of
                 Stopped ->
@@ -171,63 +173,159 @@ view model =
                     Element.rgb255 0xFF 0x95 0x00
             )
         ]
-        [ case model.sound of
-            SoundLoading ->
-                text "Loading audio..."
+        [ el [ centerX ] <|
+            case model.sound of
+                SoundLoading ->
+                    text "Loading audio..."
 
-            SoundError _ ->
-                text "Error loading audio 😔"
+                SoundError _ ->
+                    text "Error loading audio 😔"
 
-            SoundLoaded _ ->
-                Element.none
-        , text "WIP"
+                SoundLoaded _ ->
+                    Element.none
+        , el [ centerX, centerY ] (text "WIP")
+        , el [ centerX, alignBottom ] buttons
+        ]
+
+
+buttons : Element Msg
+buttons =
+    let
+        button : msg -> String -> Element msg
+        button msg label =
+            Input.button
+                [ padding 8
+                , Border.width 1
+                , Border.rounded 8
+                ]
+                { onPress = Just msg
+                , label = text label
+                }
+    in
+    row [ spacing 8 ]
+        [ button StartWork "Work"
+        , button StartBreak "Break"
+        , button Stop "Stop"
         ]
 
 
 update : audioData -> Msg -> Maybe Model -> ( Maybe Model, Cmd msg, AudioCmd msg )
 update _ msg maybeModel =
-    case ( msg, maybeModel ) of
-        ( Tick now, Nothing ) ->
-            ( { workTime = Quantity.zero
-              , fraction = 3
-              , currentState = Stopped
-              , now = now
-              , sound = SoundLoading
-              }
-                |> Just
-            , Cmd.none
-            , Audio.cmdNone
-            )
+    case maybeModel of
+        Nothing ->
+            case msg of
+                Tick now ->
+                    ( { workTime = Quantity.zero
+                      , divisor = 3
+                      , currentState = Stopped
+                      , now = now
+                      , sound = SoundLoading
+                      }
+                        |> Just
+                    , Cmd.none
+                    , Audio.cmdNone
+                    )
 
-        ( Tick now, Just model ) ->
-            ( Just { model | now = now }, Cmd.none, Audio.cmdNone )
+                _ ->
+                    ( Nothing, Cmd.none, Audio.cmdNone )
 
-        ( _, Nothing ) ->
-            ( Nothing, Cmd.none, Audio.cmdNone )
+        Just model ->
+            let
+                newModel : Model
+                newModel =
+                    case msg of
+                        Tick now ->
+                            { model | now = now }
 
-        ( StartBreak, Just _ ) ->
-            Debug.todo "branch '( StartBreak, Just _ )' not implemented"
+                        StartBreak ->
+                            case model.currentState of
+                                Stopped ->
+                                    { model
+                                        | currentState =
+                                            OnBreak
+                                                { endsOn = model.now
+                                                }
+                                    }
 
-        ( StartWork, Just _ ) ->
-            Debug.todo "branch '( StartWork, Just _ )' not implemented"
+                                Working { startedFrom, bankedBreakTime } ->
+                                    let
+                                        durationWorked : Duration
+                                        durationWorked =
+                                            Duration.from startedFrom model.now
+                                    in
+                                    { model
+                                        | currentState =
+                                            OnBreak
+                                                { endsOn =
+                                                    durationWorked
+                                                        |> Quantity.divideBy model.divisor
+                                                        |> Quantity.plus bankedBreakTime
+                                                        |> Duration.addTo model.now
+                                                }
+                                        , workTime =
+                                            model.workTime
+                                                |> Quantity.plus durationWorked
+                                    }
 
-        ( Stop, Just _ ) ->
-            Debug.todo "branch '( Stop, Just _ )' not implemented"
+                                OnBreak _ ->
+                                    model
 
-        ( SoundLoadResult sound, Just model ) ->
-            ( Just
-                { model
-                    | sound =
-                        case sound of
-                            Ok source ->
-                                SoundLoaded source
+                        StartWork ->
+                            case model.currentState of
+                                Stopped ->
+                                    { model
+                                        | currentState =
+                                            Working
+                                                { bankedBreakTime = Quantity.zero
+                                                , startedFrom = model.now
+                                                }
+                                    }
 
-                            Err err ->
-                                SoundError err
-                }
-            , Cmd.none
-            , Audio.cmdNone
-            )
+                                Working _ ->
+                                    model
+
+                                OnBreak { endsOn } ->
+                                    { model
+                                        | currentState =
+                                            Working
+                                                { bankedBreakTime = Duration.from model.now endsOn
+                                                , startedFrom = model.now
+                                                }
+                                    }
+
+                        Stop ->
+                            case model.currentState of
+                                Stopped ->
+                                    model
+
+                                Working { startedFrom } ->
+                                    let
+                                        durationWorked : Duration
+                                        durationWorked =
+                                            Duration.from startedFrom model.now
+                                    in
+                                    { model
+                                        | currentState = Stopped
+                                        , workTime =
+                                            model.workTime
+                                                |> Quantity.plus durationWorked
+                                    }
+
+                                OnBreak _ ->
+                                    { model | currentState = Stopped }
+
+                        SoundLoadResult sound ->
+                            { model
+                                | sound =
+                                    case sound of
+                                        Ok source ->
+                                            SoundLoaded source
+
+                                        Err err ->
+                                            SoundError err
+                            }
+            in
+            ( Just newModel, Cmd.none, Audio.cmdNone )
 
 
 subscriptions : audioData -> model -> Sub Msg
