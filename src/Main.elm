@@ -129,7 +129,7 @@ durationToString duration =
         seconds : Int
         seconds =
             Duration.inSeconds duration
-                |> round
+                |> floor
     in
     if seconds < 0 then
         "-" ++ durationToString (Quantity.negate duration)
