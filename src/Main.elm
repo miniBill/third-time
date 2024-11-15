@@ -4,7 +4,7 @@ import Audio exposing (AudioCmd)
 import Browser
 import Browser.Events
 import Duration exposing (Duration)
-import Element exposing (Element, alignBottom, centerX, centerY, column, el, fill, height, padding, row, spacing, text, width)
+import Element exposing (Element, alignBottom, alignRight, centerX, centerY, column, el, fill, height, padding, row, spacing, text, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -47,6 +47,7 @@ type Msg
     = StartBreak
     | StartWork
     | Stop
+    | Reset
     | Tick Time.Posix
     | SoundLoadResult (Result Audio.LoadError Audio.Source)
 
@@ -148,7 +149,7 @@ init : flags -> ( Maybe Model, Cmd msg, AudioCmd Msg )
 init _ =
     ( Nothing
     , Cmd.none
-    , Audio.loadAudio SoundLoadResult "/src/Wakka%20Wakka.mp3"
+    , Audio.loadAudio SoundLoadResult "/src/Chime.mp3"
     )
 
 
@@ -160,6 +161,7 @@ view model =
         , spacing 8
         , centerX
         , padding 8
+        , Font.size 32
         , Font.color (Element.rgb255 0xFF 0xFF 0xFF)
         , Background.color
             (case model.currentState of
@@ -172,6 +174,7 @@ view model =
                 OnBreak _ ->
                     Element.rgb255 0xFF 0x95 0x00
             )
+        , Element.inFront (el [ alignRight, padding 8 ] (button Reset "🔄 Reset"))
         ]
         [ el [ centerX ] <|
             case model.sound of
@@ -184,29 +187,35 @@ view model =
                 SoundLoaded _ ->
                     Element.none
         , el [ centerX, centerY ] (text "WIP")
-        , el [ centerX, alignBottom ] buttons
+        , buttons
         ]
 
 
 buttons : Element Msg
 buttons =
-    let
-        button : msg -> String -> Element msg
-        button msg label =
-            Input.button
-                [ padding 8
-                , Border.width 1
-                , Border.rounded 8
-                ]
-                { onPress = Just msg
-                , label = text label
-                }
-    in
-    row [ spacing 8 ]
-        [ button StartWork "Work"
-        , button StartBreak "Break"
-        , button Stop "Stop"
+    row
+        [ spacing 8
+        , width fill
+        , alignBottom
         ]
+        [ button StartWork "🛠️ Work"
+        , button StartBreak "🕺 Break"
+        , button Stop "🔨 Stop"
+        ]
+
+
+button : msg -> String -> Element msg
+button msg label =
+    Input.button
+        [ centerX
+        , padding 8
+        , Border.width 1
+        , Border.rounded 8
+        , Background.color (Element.rgba255 0xFF 0xFF 0xFF 0.3)
+        ]
+        { onPress = Just msg
+        , label = text label
+        }
 
 
 update : audioData -> Msg -> Maybe Model -> ( Maybe Model, Cmd msg, AudioCmd msg )
@@ -313,6 +322,12 @@ update _ msg maybeModel =
 
                                 OnBreak _ ->
                                     { model | currentState = Stopped }
+
+                        Reset ->
+                            { model
+                                | currentState = Stopped
+                                , workTime = Quantity.zero
+                            }
 
                         SoundLoadResult sound ->
                             { model
