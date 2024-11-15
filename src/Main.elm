@@ -4,7 +4,7 @@ import Audio exposing (AudioCmd)
 import Browser
 import Browser.Events
 import Duration exposing (Duration)
-import Element exposing (Element, alignBottom, alignRight, centerX, centerY, column, el, fill, height, padding, row, shrink, spacing, table, text, width)
+import Element exposing (Element, alignBottom, alignRight, centerX, centerY, column, el, fill, height, moveUp, padding, px, row, shrink, spacing, table, text, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -50,6 +50,7 @@ type Msg
     | Reset
     | Tick Time.Posix
     | SoundLoadResult (Result Audio.LoadError Audio.Source)
+    | Divisor Float
 
 
 main : Program Flags (Audio.Model Msg (Maybe Model)) (Audio.Msg Msg)
@@ -214,23 +215,27 @@ view model =
         ]
 
 
-centralBlock : Model -> List ( Element msg, Element msg )
+centralBlock : Model -> List ( Element Msg, Element Msg )
 centralBlock model =
     let
-        firstLine : Duration -> String -> ( Element msg, Element msg )
-        firstLine duration label =
+        firstLine : Duration -> String -> List (Element Msg) -> ( Element Msg, Element Msg )
+        firstLine duration label other =
             ( el
                 [ Font.alignRight
                 , padding 4
+                , Border.widthEach { left = 0, right = 0, bottom = 1, top = 0 }
+                , height fill
                 ]
                 (text (durationToString duration))
-            , el
+            , column
                 [ padding 4
+                , spacing 4
+                , Border.widthEach { left = 0, right = 0, bottom = 1, top = 0 }
                 ]
-                (text label)
+                (text label :: other)
             )
 
-        line : Duration -> String -> ( Element msg, Element msg )
+        line : Duration -> String -> ( Element Msg, Element Msg )
         line duration label =
             ( el
                 [ fontSize.small
@@ -247,7 +252,7 @@ centralBlock model =
     in
     case model.currentState of
         Stopped ->
-            [ firstLine model.workTime "Worked" ]
+            [ firstLine model.workTime "Worked" [] ]
 
         Working { startedFrom, bankedBreakTime } ->
             let
@@ -255,7 +260,30 @@ centralBlock model =
                 durationWorked =
                     Duration.from startedFrom model.now
             in
-            [ firstLine durationWorked "Worked"
+            [ firstLine durationWorked
+                "Worked"
+                [ row
+                    [ fontSize.small
+                    , spacing 4
+                    ]
+                    [ Input.text
+                        [ Background.color (Element.rgba 0 0 0 0)
+                        , padding 4
+                        , width (px 32)
+                        ]
+                        { text = String.fromFloat model.divisor
+                        , onChange =
+                            \newDivisor ->
+                                newDivisor
+                                    |> String.toFloat
+                                    |> Maybe.withDefault model.divisor
+                                    |> Divisor
+                        , placeholder = Nothing
+                        , label = Input.labelLeft [] (text "/")
+                        }
+                    , el [ moveUp 4 ] (text "=")
+                    ]
+                ]
             , line
                 (durationWorked
                     |> Quantity.divideBy model.divisor
@@ -266,7 +294,7 @@ centralBlock model =
             ]
 
         OnBreak { endsOn } ->
-            [ firstLine (Duration.from model.now endsOn) "Rest"
+            [ firstLine (Duration.from model.now endsOn) "Rest" []
             , line model.workTime "Worked of 4:13 goal"
             ]
 
@@ -419,6 +447,9 @@ update _ msg maybeModel =
                                         Err err ->
                                             SoundError err
                             }
+
+                        Divisor divisor ->
+                            { model | divisor = divisor }
             in
             ( Just newModel, Cmd.none, Audio.cmdNone )
 
