@@ -40,7 +40,7 @@ type State
         { startedFrom : Time.Posix
         , bankedBreakTime : Duration
         }
-    | OnBreak { endsOn : Time.Posix }
+    | Resting { endsOn : Time.Posix }
 
 
 type Msg
@@ -80,7 +80,7 @@ audio _ maybeModel =
 
         Just { currentState, sound } ->
             case ( currentState, sound ) of
-                ( OnBreak { endsOn }, SoundLoaded source ) ->
+                ( Resting { endsOn }, SoundLoaded source ) ->
                     Audio.audio source endsOn
 
                 _ ->
@@ -114,8 +114,12 @@ title { now, currentState } =
         Working { startedFrom } ->
             "Working: " ++ durationToString (Duration.from startedFrom now)
 
-        OnBreak { endsOn } ->
-            "On break: " ++ durationToString (Duration.from now endsOn)
+        Resting { endsOn } ->
+            if Time.posixToMillis now < Time.posixToMillis endsOn then
+                "Resting: " ++ durationToString (Duration.from now endsOn)
+
+            else
+                "🔔 Resting: " ++ durationToString (Duration.from now endsOn)
 
 
 durationToString : Duration -> String
@@ -178,10 +182,14 @@ view model =
                 Working _ ->
                     Element.rgb255 0x29 0xA3 0x3D
 
-                OnBreak _ ->
-                    Element.rgb255 0xFF 0x95 0x00
+                Resting { endsOn } ->
+                    if Time.posixToMillis model.now < Time.posixToMillis endsOn then
+                        Element.rgb255 0xFF 0x95 0x00
+
+                    else
+                        Element.rgb255 0x8F 0x55 0x00
             )
-        , Element.inFront (el [ alignRight, padding 8 ] (button Reset "🔄 Reset"))
+        , Element.inFront (el [ alignRight, padding 8 ] (button Reset "Reset"))
         ]
         [ el [ centerX ] <|
             case model.sound of
@@ -222,14 +230,14 @@ centralBlock model =
         firstLine duration label other =
             ( el
                 [ Font.alignRight
-                , padding 4
+                , padding 8
                 , Border.widthEach { left = 0, right = 0, bottom = 1, top = 0 }
                 , height fill
                 ]
                 (text (durationToString duration))
             , column
-                [ padding 4
-                , spacing 4
+                [ padding 8
+                , spacing 8
                 , Border.widthEach { left = 0, right = 0, bottom = 1, top = 0 }
                 ]
                 (text label :: other)
@@ -240,12 +248,12 @@ centralBlock model =
             ( el
                 [ fontSize.small
                 , Font.alignRight
-                , padding 4
+                , padding 8
                 ]
                 (text (durationToString duration))
             , el
                 [ fontSize.small
-                , padding 4
+                , padding 8
                 ]
                 (text label)
             )
@@ -264,11 +272,11 @@ centralBlock model =
                 "Worked"
                 [ row
                     [ fontSize.small
-                    , spacing 4
+                    , spacing 8
                     ]
                     [ Input.text
                         [ Background.color (Element.rgba 0 0 0 0)
-                        , padding 4
+                        , padding 8
                         , width (px 32)
                         ]
                         { text = String.fromFloat model.divisor
@@ -293,7 +301,7 @@ centralBlock model =
             , line (model.workTime |> Quantity.plus durationWorked) "Worked of 4:13 goal"
             ]
 
-        OnBreak { endsOn } ->
+        Resting { endsOn } ->
             [ firstLine (Duration.from model.now endsOn) "Rest" []
             , line model.workTime "Worked of 4:13 goal"
             ]
@@ -306,9 +314,9 @@ buttons =
         , width fill
         , alignBottom
         ]
-        [ button StartWork "🛠️ Work"
-        , button StartBreak "🕺 Break"
-        , button Stop "🔨 Stop"
+        [ button StartWork "Work"
+        , button StartBreak "Break"
+        , button Stop "Stop"
         ]
 
 
@@ -359,7 +367,7 @@ update _ msg maybeModel =
                                 Stopped ->
                                     { model
                                         | currentState =
-                                            OnBreak
+                                            Resting
                                                 { endsOn = model.now
                                                 }
                                     }
@@ -372,7 +380,7 @@ update _ msg maybeModel =
                                     in
                                     { model
                                         | currentState =
-                                            OnBreak
+                                            Resting
                                                 { endsOn =
                                                     durationWorked
                                                         |> Quantity.divideBy model.divisor
@@ -384,7 +392,7 @@ update _ msg maybeModel =
                                                 |> Quantity.plus durationWorked
                                     }
 
-                                OnBreak _ ->
+                                Resting _ ->
                                     model
 
                         StartWork ->
@@ -401,7 +409,7 @@ update _ msg maybeModel =
                                 Working _ ->
                                     model
 
-                                OnBreak { endsOn } ->
+                                Resting { endsOn } ->
                                     { model
                                         | currentState =
                                             Working
@@ -428,7 +436,7 @@ update _ msg maybeModel =
                                                 |> Quantity.plus durationWorked
                                     }
 
-                                OnBreak _ ->
+                                Resting _ ->
                                     { model | currentState = Stopped }
 
                         Reset ->
