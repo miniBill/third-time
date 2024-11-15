@@ -153,6 +153,12 @@ init _ =
     )
 
 
+fontSize =
+    { main = Font.size 32
+    , small = Font.size 24
+    }
+
+
 view : Model -> Element Msg
 view model =
     column
@@ -161,7 +167,7 @@ view model =
         , spacing 8
         , centerX
         , padding 8
-        , Font.size 32
+        , fontSize.main
         , Font.color (Element.rgb255 0xFF 0xFF 0xFF)
         , Background.color
             (case model.currentState of
@@ -191,8 +197,7 @@ view model =
             , centerY
             ]
           <|
-            table
-                [ spacing 8 ]
+            table []
                 { data = centralBlock model
                 , columns =
                     [ { width = shrink
@@ -212,15 +217,37 @@ view model =
 centralBlock : Model -> List ( Element msg, Element msg )
 centralBlock model =
     let
+        firstLine : Duration -> String -> ( Element msg, Element msg )
+        firstLine duration label =
+            ( el
+                [ Font.alignRight
+                , padding 4
+                ]
+                (text (durationToString duration))
+            , el
+                [ padding 4
+                ]
+                (text label)
+            )
+
         line : Duration -> String -> ( Element msg, Element msg )
         line duration label =
-            ( el [ Font.alignRight ] (text (durationToString duration))
-            , el [ Font.size 20, alignBottom ] (text label)
+            ( el
+                [ fontSize.small
+                , Font.alignRight
+                , padding 4
+                ]
+                (text (durationToString duration))
+            , el
+                [ fontSize.small
+                , padding 4
+                ]
+                (text label)
             )
     in
     case model.currentState of
         Stopped ->
-            [ line model.workTime "Worked" ]
+            [ firstLine model.workTime "Worked" ]
 
         Working { startedFrom, bankedBreakTime } ->
             let
@@ -228,7 +255,7 @@ centralBlock model =
                 durationWorked =
                     Duration.from startedFrom model.now
             in
-            [ line durationWorked "Worked"
+            [ firstLine durationWorked "Worked"
             , line
                 (durationWorked
                     |> Quantity.divideBy model.divisor
@@ -239,7 +266,7 @@ centralBlock model =
             ]
 
         OnBreak { endsOn } ->
-            [ line (Duration.from model.now endsOn) "Rest"
+            [ firstLine (Duration.from model.now endsOn) "Rest"
             , line model.workTime "Worked of 4:13 goal"
             ]
 
