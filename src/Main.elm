@@ -4,7 +4,7 @@ import Audio exposing (AudioCmd)
 import Browser
 import Browser.Events
 import Duration exposing (Duration)
-import Element exposing (Element, alignBottom, alignRight, centerX, centerY, column, el, fill, fillPortion, height, moveUp, padding, px, row, shrink, spacing, table, text, width)
+import Element exposing (Element, alignBottom, centerX, column, el, fill, fillPortion, height, moveUp, padding, px, row, shrink, spacing, table, text, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
