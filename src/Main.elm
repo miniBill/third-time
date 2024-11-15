@@ -4,7 +4,7 @@ import Audio exposing (AudioCmd)
 import Browser
 import Browser.Events
 import Duration exposing (Duration)
-import Element exposing (Element, alignBottom, alignRight, centerX, centerY, column, el, fill, height, padding, row, spacing, text, width)
+import Element exposing (Element, alignBottom, alignRight, centerX, centerY, column, el, fill, height, padding, row, shrink, spacing, table, text, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -111,14 +111,14 @@ title { now, currentState } =
             "Stopped"
 
         Working { startedFrom } ->
-            "Working: " ++ formatDuration (Duration.from startedFrom now)
+            "Working: " ++ durationToString (Duration.from startedFrom now)
 
         OnBreak { endsOn } ->
-            "On break: " ++ formatDuration (Duration.from now endsOn)
+            "On break: " ++ durationToString (Duration.from now endsOn)
 
 
-formatDuration : Duration -> String
-formatDuration duration =
+durationToString : Duration -> String
+durationToString duration =
     let
         seconds : Int
         seconds =
@@ -126,7 +126,7 @@ formatDuration duration =
                 |> round
     in
     if seconds < 0 then
-        "-" ++ formatDuration (Quantity.negate duration)
+        "-" ++ durationToString (Quantity.negate duration)
 
     else
         let
@@ -186,9 +186,62 @@ view model =
 
                 SoundLoaded _ ->
                     Element.none
-        , el [ centerX, centerY ] (text "WIP")
+        , el
+            [ centerX
+            , centerY
+            ]
+          <|
+            table
+                [ spacing 8 ]
+                { data = centralBlock model
+                , columns =
+                    [ { width = shrink
+                      , header = Element.none
+                      , view = Tuple.first
+                      }
+                    , { width = shrink
+                      , header = Element.none
+                      , view = Tuple.second
+                      }
+                    ]
+                }
         , buttons
         ]
+
+
+centralBlock : Model -> List ( Element msg, Element msg )
+centralBlock model =
+    let
+        line : Duration -> String -> ( Element msg, Element msg )
+        line duration label =
+            ( el [ Font.alignRight ] (text (durationToString duration))
+            , el [ Font.size 20, alignBottom ] (text label)
+            )
+    in
+    case model.currentState of
+        Stopped ->
+            [ line model.workTime "Worked" ]
+
+        Working { startedFrom, bankedBreakTime } ->
+            let
+                durationWorked : Duration
+                durationWorked =
+                    Duration.from startedFrom model.now
+            in
+            [ line durationWorked "Worked"
+            , line
+                (durationWorked
+                    |> Quantity.divideBy model.divisor
+                    |> Quantity.plus bankedBreakTime
+                )
+                "Rest"
+            , line (model.workTime |> Quantity.plus durationWorked) "Worked of 4:13 goal"
+            ]
+
+        OnBreak { endsOn } ->
+            [ line (Duration.from model.now endsOn) "Rest"
+            , line model.workTime "Worked of 4:13 goal"
+            ]
 
 
 buttons : Element Msg
