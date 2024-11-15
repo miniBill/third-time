@@ -4,7 +4,7 @@ import Audio exposing (AudioCmd)
 import Browser
 import Browser.Events
 import Duration exposing (Duration)
-import Element exposing (Element, alignBottom, alignRight, centerX, centerY, column, el, fill, height, moveUp, padding, px, row, shrink, spacing, table, text, width)
+import Element exposing (Element, alignBottom, alignRight, centerX, centerY, column, el, fill, fillPortion, height, moveUp, padding, px, row, shrink, spacing, table, text, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -171,7 +171,6 @@ view model =
         [ width fill
         , height fill
         , spacing 8
-        , centerX
         , padding 8
         , fontSize.main
         , Font.color (Element.rgb255 0xFF 0xFF 0xFF)
@@ -190,7 +189,6 @@ view model =
                     else
                         Element.rgb255 0x8F 0x55 0x00
             )
-        , Element.inFront (el [ alignRight, padding 8 ] (button Reset "Reset"))
         ]
         [ el [ centerX ] <|
             case model.sound of
@@ -202,9 +200,10 @@ view model =
 
                 SoundLoaded _ ->
                     Element.none
+        , el [ centerX ] (text "🕘 ThirdTime")
+        , el [ height (fillPortion 2) ] Element.none
         , el
             [ centerX
-            , centerY
             ]
           <|
             table []
@@ -220,7 +219,18 @@ view model =
                       }
                     ]
                 }
-        , buttons
+        , el [ height (fillPortion 1) ] Element.none
+        , el [ centerX, alignBottom ] (button Reset "Reset")
+        , el [ height (fillPortion 1) ] Element.none
+        , row
+            [ spacing 8
+            , width fill
+            , alignBottom
+            ]
+            [ button StartWork "Work"
+            , button StartBreak "Break"
+            , button Stop "Stop"
+            ]
         ]
 
 
@@ -306,19 +316,6 @@ centralBlock model =
             [ firstLine (Duration.from model.now endsOn) "Rest" []
             , line model.workTime ("Worked of " ++ durationToString model.goal ++ " goal")
             ]
-
-
-buttons : Element Msg
-buttons =
-    row
-        [ spacing 8
-        , width fill
-        , alignBottom
-        ]
-        [ button StartWork "Work"
-        , button StartBreak "Break"
-        , button Stop "Stop"
-        ]
 
 
 button : msg -> String -> Element msg
