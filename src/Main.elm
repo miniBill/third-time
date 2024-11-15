@@ -25,6 +25,7 @@ type alias Model =
     , currentState : State
     , now : Time.Posix
     , sound : SoundState
+    , goal : Duration
     }
 
 
@@ -298,12 +299,12 @@ centralBlock model =
                     |> Quantity.plus bankedBreakTime
                 )
                 "Rest"
-            , line (model.workTime |> Quantity.plus durationWorked) "Worked of 4:13 goal"
+            , line (model.workTime |> Quantity.plus durationWorked) ("Worked of " ++ durationToString model.goal ++ " goal")
             ]
 
         Resting { endsOn } ->
             [ firstLine (Duration.from model.now endsOn) "Rest" []
-            , line model.workTime "Worked of 4:13 goal"
+            , line model.workTime ("Worked of " ++ durationToString model.goal ++ " goal")
             ]
 
 
@@ -345,6 +346,7 @@ update _ msg maybeModel =
                       , currentState = Stopped
                       , now = now
                       , sound = SoundLoading
+                      , goal = Duration.minutes (4 * 60 + 13)
                       }
                         |> Just
                     , Cmd.none
