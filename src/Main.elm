@@ -220,7 +220,12 @@ view model =
                     ]
                 }
         , el [ height (fillPortion 1) ] Element.none
-        , el [ centerX, alignBottom ] (button Reset "Reset")
+        , case model.currentState of
+            Stopped ->
+                el [ centerX, alignBottom ] (button Reset "Reset")
+
+            _ ->
+                Element.none
         , el [ height (fillPortion 1) ] Element.none
         , row
             [ spacing 8
