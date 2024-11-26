@@ -21,7 +21,7 @@ type alias Flags =
 
 type alias Model =
     { workTime : Duration
-    , divisor : Float
+    , divisor : { string : String, float : Float }
     , currentState : State
     , now : Time.Posix
     , sound : SoundState
@@ -51,7 +51,7 @@ type Msg
     | Reset
     | Tick Time.Posix
     | SoundLoadResult (Result Audio.LoadError Audio.Source)
-    | Divisor Float
+    | Divisor String
 
 
 main : Program Flags (Audio.Model Msg (Maybe Model)) (Audio.Msg Msg)
@@ -112,22 +112,25 @@ containerStyle model =
     , padding 8
     , fontSize.main
     , Font.color (Element.rgb255 0xFF 0xFF 0xFF)
-    , Background.color
-        (case model.currentState of
-            Stopped ->
-                Element.rgb255 0x45 0x54 0xA1
-
-            Working _ ->
-                Element.rgb255 0x29 0xA3 0x3D
-
-            Resting { endsOn } ->
-                if Time.posixToMillis model.now < Time.posixToMillis endsOn then
-                    Element.rgb255 0xFF 0x95 0x00
-
-                else
-                    Element.rgb255 0x8F 0x55 0x00
-        )
+    , Background.color (backgroundColor model)
     ]
+
+
+backgroundColor : Model -> Element.Color
+backgroundColor model =
+    case model.currentState of
+        Stopped ->
+            Element.rgb255 0x45 0x54 0xA1
+
+        Working _ ->
+            Element.rgb255 0x29 0xA3 0x3D
+
+        Resting { endsOn } ->
+            if Time.posixToMillis model.now < Time.posixToMillis endsOn then
+                Element.rgb255 0xFF 0x95 0x00
+
+            else
+                Element.rgb255 0x8F 0x55 0x00
 
 
 title : Model -> String
@@ -209,11 +212,15 @@ view model =
             , columns =
                 [ { width = shrink
                   , header = Element.none
-                  , view = Tuple.first
+                  , view = \( a, _, _ ) -> a
                   }
                 , { width = shrink
                   , header = Element.none
-                  , view = Tuple.second
+                  , view = \( _, a, _ ) -> a
+                  }
+                , { width = shrink
+                  , header = Element.none
+                  , view = \( _, _, a ) -> a
                   }
                 ]
             }
@@ -237,10 +244,10 @@ view model =
         ]
 
 
-centralBlock : Model -> List ( Element Msg, Element Msg )
+centralBlock : Model -> List ( Element Msg, Element Msg, Element Msg )
 centralBlock model =
     let
-        firstLine : Duration -> String -> List (Element Msg) -> ( Element Msg, Element Msg )
+        firstLine : Duration -> String -> List (Element Msg) -> ( Element Msg, Element Msg, Element Msg )
         firstLine duration label other =
             ( el
                 [ Font.alignRight
@@ -255,9 +262,10 @@ centralBlock model =
                 , Border.widthEach { left = 0, right = 0, bottom = 1, top = 0 }
                 ]
                 (text label :: other)
+            , Element.none
             )
 
-        line : Duration -> String -> ( Element Msg, Element Msg )
+        line : Duration -> String -> ( Element Msg, Element Msg, Element Msg )
         line duration label =
             ( el
                 [ fontSize.small
@@ -270,6 +278,7 @@ centralBlock model =
                 , padding 8
                 ]
                 (text label)
+            , Element.none
             )
     in
     case model.currentState of
@@ -291,15 +300,10 @@ centralBlock model =
                     [ Input.text
                         [ Background.color (Element.rgba 0 0 0 0)
                         , padding 8
-                        , width (px 32)
+                        , width (px 60)
                         ]
-                        { text = String.fromFloat model.divisor
-                        , onChange =
-                            \newDivisor ->
-                                newDivisor
-                                    |> String.toFloat
-                                    |> Maybe.withDefault model.divisor
-                                    |> Divisor
+                        { text = model.divisor.string
+                        , onChange = Divisor
                         , placeholder = Nothing
                         , label = Input.labelLeft [] (text "/")
                         }
@@ -308,7 +312,7 @@ centralBlock model =
                 ]
             , line
                 (durationWorked
-                    |> Quantity.divideBy model.divisor
+                    |> Quantity.divideBy model.divisor.float
                     |> Quantity.plus bankedBreakTime
                 )
                 "Rest"
@@ -342,7 +346,7 @@ update _ msg maybeModel =
             case msg of
                 Tick now ->
                     ( { workTime = Quantity.zero
-                      , divisor = 3
+                      , divisor = { string = "3", float = 3 }
                       , currentState = Stopped
                       , now = now
                       , sound = SoundLoading
@@ -385,7 +389,7 @@ update _ msg maybeModel =
                                             Resting
                                                 { endsOn =
                                                     durationWorked
-                                                        |> Quantity.divideBy model.divisor
+                                                        |> Quantity.divideBy model.divisor.float
                                                         |> Quantity.plus bankedBreakTime
                                                         |> Duration.addTo model.now
                                                 }
@@ -459,7 +463,15 @@ update _ msg maybeModel =
                             }
 
                         Divisor divisor ->
-                            { model | divisor = divisor }
+                            { model
+                                | divisor =
+                                    { string = divisor
+                                    , float =
+                                        divisor
+                                            |> String.toFloat
+                                            |> Maybe.withDefault model.divisor.float
+                                    }
+                            }
             in
             ( Just newModel, Cmd.none, Audio.cmdNone )
 
