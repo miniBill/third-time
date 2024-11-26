@@ -4,7 +4,7 @@ import Audio exposing (AudioCmd)
 import Browser
 import Browser.Events
 import Duration exposing (Duration)
-import Element exposing (Element, alignBottom, centerX, column, el, fill, fillPortion, height, moveUp, padding, px, row, shrink, spacing, table, text, width)
+import Element exposing (Element, alignBottom, alignRight, centerX, centerY, column, el, fill, fillPortion, height, moveUp, padding, px, row, shrink, spacing, table, text, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -52,6 +52,7 @@ type Msg
     | Tick Time.Posix
     | SoundLoadResult (Result Audio.LoadError Audio.Source)
     | Divisor String
+    | AddWorkTime Duration
 
 
 main : Program Flags (Audio.Model Msg (Maybe Model)) (Audio.Msg Msg)
@@ -227,7 +228,7 @@ view model =
         , el [ height (fillPortion 1) ] Element.none
         , case model.currentState of
             Stopped ->
-                el [ centerX, alignBottom ] (button Reset "Reset")
+                el [ centerX, alignBottom ] (button Reset (text "Reset"))
 
             _ ->
                 Element.none
@@ -237,9 +238,9 @@ view model =
             , width fill
             , alignBottom
             ]
-            [ button StartWork "Work"
-            , button StartBreak "Break"
-            , button Stop "Stop"
+            [ button StartWork (text "Work")
+            , button StartBreak (text "Break")
+            , button Stop (text "Stop")
             ]
         ]
 
@@ -261,7 +262,32 @@ centralBlock model =
                 , spacing 8
                 , Border.widthEach { left = 0, right = 0, bottom = 1, top = 0 }
                 ]
-                (text label :: other)
+                (row [ spacing 8, width fill ]
+                    [ text label
+                    , let
+                        hline =
+                            el [ Border.widthXY 0 1, width (px 18), height (px 2) ] Element.none
+                      in
+                      row [ spacing 8, alignRight ]
+                        [ button (AddWorkTime Duration.minute)
+                            (el
+                                [ centerX
+                                , centerY
+                                , Element.inFront <| el [ Element.rotate (degrees 90) ] hline
+                                ]
+                                hline
+                            )
+                        , button (AddWorkTime (Duration.minutes -1))
+                            (el
+                                [ centerX
+                                , centerY
+                                ]
+                                hline
+                            )
+                        ]
+                    ]
+                    :: other
+                )
             , Element.none
             )
 
@@ -325,7 +351,7 @@ centralBlock model =
             ]
 
 
-button : msg -> String -> Element msg
+button : msg -> Element msg -> Element msg
 button msg label =
     Input.button
         [ centerX
@@ -333,9 +359,11 @@ button msg label =
         , Border.width 1
         , Border.rounded 8
         , Background.color (Element.rgba255 0xFF 0xFF 0xFF 0.3)
+        , height <| Element.minimum 40 shrink
+        , width <| Element.minimum 40 shrink
         ]
         { onPress = Just msg
-        , label = text label
+        , label = label
         }
 
 
@@ -472,6 +500,32 @@ update _ msg maybeModel =
                                             |> Maybe.withDefault model.divisor.float
                                     }
                             }
+
+                        AddWorkTime duration ->
+                            case model.currentState of
+                                Stopped ->
+                                    { model
+                                        | currentState = Stopped
+                                        , workTime = Quantity.plus duration model.workTime
+                                    }
+
+                                Working working ->
+                                    { model
+                                        | currentState =
+                                            Working
+                                                { working
+                                                    | startedFrom =
+                                                        duration
+                                                            |> Duration.subtractFrom working.startedFrom
+                                                }
+                                    }
+
+                                Resting { endsOn } ->
+                                    { model
+                                        | currentState =
+                                            Resting
+                                                { endsOn = Duration.addTo endsOn duration }
+                                    }
             in
             ( Just newModel, Cmd.none, Audio.cmdNone )
 
