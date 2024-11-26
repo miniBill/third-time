@@ -98,12 +98,36 @@ outerView _ maybeModel =
             { title = title model
             , body =
                 [ Element.layout
-                    [ width fill
-                    , height fill
-                    ]
+                    (containerStyle model)
                     (view model)
                 ]
             }
+
+
+containerStyle : Model -> List (Element.Attribute Msg)
+containerStyle model =
+    [ width fill
+    , height fill
+    , spacing 8
+    , padding 8
+    , fontSize.main
+    , Font.color (Element.rgb255 0xFF 0xFF 0xFF)
+    , Background.color
+        (case model.currentState of
+            Stopped ->
+                Element.rgb255 0x45 0x54 0xA1
+
+            Working _ ->
+                Element.rgb255 0x29 0xA3 0x3D
+
+            Resting { endsOn } ->
+                if Time.posixToMillis model.now < Time.posixToMillis endsOn then
+                    Element.rgb255 0xFF 0x95 0x00
+
+                else
+                    Element.rgb255 0x8F 0x55 0x00
+        )
+    ]
 
 
 title : Model -> String
@@ -167,29 +191,7 @@ fontSize =
 
 view : Model -> Element Msg
 view model =
-    column
-        [ width fill
-        , height fill
-        , spacing 8
-        , padding 8
-        , fontSize.main
-        , Font.color (Element.rgb255 0xFF 0xFF 0xFF)
-        , Background.color
-            (case model.currentState of
-                Stopped ->
-                    Element.rgb255 0x45 0x54 0xA1
-
-                Working _ ->
-                    Element.rgb255 0x29 0xA3 0x3D
-
-                Resting { endsOn } ->
-                    if Time.posixToMillis model.now < Time.posixToMillis endsOn then
-                        Element.rgb255 0xFF 0x95 0x00
-
-                    else
-                        Element.rgb255 0x8F 0x55 0x00
-            )
-        ]
+    column [ centerX, height fill ]
         [ el [ centerX ] <|
             case model.sound of
                 SoundLoading ->
@@ -205,21 +207,13 @@ view model =
         , table []
             { data = centralBlock model
             , columns =
-                [ { width = fill
-                  , header = Element.none
-                  , view = \_ -> Element.none
-                  }
-                , { width = shrink
+                [ { width = shrink
                   , header = Element.none
                   , view = Tuple.first
                   }
                 , { width = shrink
                   , header = Element.none
                   , view = Tuple.second
-                  }
-                , { width = fill
-                  , header = Element.none
-                  , view = \_ -> Element.none
                   }
                 ]
             }
