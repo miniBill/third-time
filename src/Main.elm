@@ -202,23 +202,27 @@ view model =
                     Element.none
         , el [ centerX ] (text "🕘 ThirdTime")
         , el [ height (fillPortion 2) ] Element.none
-        , el
-            [ centerX
-            ]
-          <|
-            table []
-                { data = centralBlock model
-                , columns =
-                    [ { width = shrink
-                      , header = Element.none
-                      , view = Tuple.first
-                      }
-                    , { width = shrink
-                      , header = Element.none
-                      , view = Tuple.second
-                      }
-                    ]
-                }
+        , table []
+            { data = centralBlock model
+            , columns =
+                [ { width = fill
+                  , header = Element.none
+                  , view = \_ -> Element.none
+                  }
+                , { width = shrink
+                  , header = Element.none
+                  , view = Tuple.first
+                  }
+                , { width = shrink
+                  , header = Element.none
+                  , view = Tuple.second
+                  }
+                , { width = fill
+                  , header = Element.none
+                  , view = \_ -> Element.none
+                  }
+                ]
+            }
         , el [ height (fillPortion 1) ] Element.none
         , case model.currentState of
             Stopped ->
