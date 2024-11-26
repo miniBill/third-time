@@ -38,10 +38,14 @@ type SoundState
 type State
     = Stopped
     | Working
-        { startedFrom : Time.Posix
+        { startedFrom : RoundedTime
         , bankedBreakTime : Duration
         }
-    | Resting { endsOn : Time.Posix }
+    | Resting { endsOn : RoundedTime }
+
+
+type RoundedTime
+    = RoundedTime Time.Posix
 
 
 type Msg
@@ -82,7 +86,11 @@ audio _ maybeModel =
 
         Just { currentState, sound } ->
             case ( currentState, sound ) of
-                ( Resting { endsOn }, SoundLoaded source ) ->
+                ( Resting resting, SoundLoaded source ) ->
+                    let
+                        (RoundedTime endsOn) =
+                            resting.endsOn
+                    in
                     Audio.audio source endsOn
 
                 _ ->
@@ -126,7 +134,11 @@ backgroundColor model =
         Working _ ->
             Element.rgb255 0x29 0xA3 0x3D
 
-        Resting { endsOn } ->
+        Resting resting ->
+            let
+                (RoundedTime endsOn) =
+                    resting.endsOn
+            in
             if Time.posixToMillis model.now < Time.posixToMillis endsOn then
                 Element.rgb255 0xFF 0x95 0x00
 
@@ -140,10 +152,18 @@ title { now, currentState } =
         Stopped ->
             "Stopped"
 
-        Working { startedFrom } ->
+        Working working ->
+            let
+                (RoundedTime startedFrom) =
+                    working.startedFrom
+            in
             "Working: " ++ durationToString (Duration.from startedFrom now)
 
-        Resting { endsOn } ->
+        Resting resting ->
+            let
+                (RoundedTime endsOn) =
+                    resting.endsOn
+            in
             if Time.posixToMillis now < Time.posixToMillis endsOn then
                 "Resting: " ++ durationToString (Duration.from now endsOn)
 
@@ -311,8 +331,11 @@ centralBlock model =
         Stopped ->
             [ firstLine model.workTime "Worked" [] ]
 
-        Working { startedFrom, bankedBreakTime } ->
+        Working ({ bankedBreakTime } as working) ->
             let
+                (RoundedTime startedFrom) =
+                    working.startedFrom
+
                 durationWorked : Duration
                 durationWorked =
                     Duration.from startedFrom model.now
@@ -345,7 +368,11 @@ centralBlock model =
             , line (model.workTime |> Quantity.plus durationWorked) ("Worked of " ++ durationToString model.goal ++ " goal")
             ]
 
-        Resting { endsOn } ->
+        Resting resting ->
+            let
+                (RoundedTime endsOn) =
+                    resting.endsOn
+            in
             [ firstLine (Duration.from model.now endsOn) "Rest" []
             , line model.workTime ("Worked of " ++ durationToString model.goal ++ " goal")
             ]
@@ -402,12 +429,15 @@ update _ msg maybeModel =
                                     { model
                                         | currentState =
                                             Resting
-                                                { endsOn = model.now
+                                                { endsOn = roundTime model.now
                                                 }
                                     }
 
-                                Working { startedFrom, bankedBreakTime } ->
+                                Working ({ bankedBreakTime } as working) ->
                                     let
+                                        (RoundedTime startedFrom) =
+                                            working.startedFrom
+
                                         durationWorked : Duration
                                         durationWorked =
                                             Duration.from startedFrom model.now
@@ -420,6 +450,7 @@ update _ msg maybeModel =
                                                         |> Quantity.divideBy model.divisor.float
                                                         |> Quantity.plus bankedBreakTime
                                                         |> Duration.addTo model.now
+                                                        |> roundTime
                                                 }
                                         , workTime =
                                             model.workTime
@@ -436,19 +467,23 @@ update _ msg maybeModel =
                                         | currentState =
                                             Working
                                                 { bankedBreakTime = Quantity.zero
-                                                , startedFrom = model.now
+                                                , startedFrom = roundTime model.now
                                                 }
                                     }
 
                                 Working _ ->
                                     model
 
-                                Resting { endsOn } ->
+                                Resting resting ->
+                                    let
+                                        (RoundedTime endsOn) =
+                                            resting.endsOn
+                                    in
                                     { model
                                         | currentState =
                                             Working
                                                 { bankedBreakTime = Duration.from model.now endsOn
-                                                , startedFrom = model.now
+                                                , startedFrom = roundTime model.now
                                                 }
                                     }
 
@@ -457,8 +492,11 @@ update _ msg maybeModel =
                                 Stopped ->
                                     model
 
-                                Working { startedFrom } ->
+                                Working working ->
                                     let
+                                        (RoundedTime startedFrom) =
+                                            working.startedFrom
+
                                         durationWorked : Duration
                                         durationWorked =
                                             Duration.from startedFrom model.now
@@ -510,24 +548,42 @@ update _ msg maybeModel =
                                     }
 
                                 Working working ->
+                                    let
+                                        (RoundedTime startedFrom) =
+                                            working.startedFrom
+                                    in
                                     { model
                                         | currentState =
                                             Working
                                                 { working
                                                     | startedFrom =
                                                         duration
-                                                            |> Duration.subtractFrom working.startedFrom
+                                                            |> Duration.subtractFrom startedFrom
+                                                            |> roundTime
                                                 }
                                     }
 
-                                Resting { endsOn } ->
+                                Resting resting ->
+                                    let
+                                        (RoundedTime endsOn) =
+                                            resting.endsOn
+                                    in
                                     { model
                                         | currentState =
                                             Resting
-                                                { endsOn = Duration.addTo endsOn duration }
+                                                { endsOn = roundTime (Duration.addTo endsOn duration) }
                                     }
             in
             ( Just newModel, Cmd.none, Audio.cmdNone )
+
+
+roundTime : Time.Posix -> RoundedTime
+roundTime posix =
+    posix
+        |> Time.posixToMillis
+        |> (\n -> n // 1000 * 1000)
+        |> Time.millisToPosix
+        |> RoundedTime
 
 
 subscriptions : audioData -> model -> Sub Msg
