@@ -104,7 +104,7 @@ outerView _ maybeModel =
             { title = "Loading...", body = [] }
 
         Just model ->
-            { title = title model
+            { title = title model ++ " | ThirdTime"
             , body =
                 [ Element.layout
                     (containerStyle model)
