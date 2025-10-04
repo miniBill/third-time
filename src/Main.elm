@@ -4,7 +4,7 @@ import Audio exposing (AudioCmd)
 import Browser
 import Browser.Events
 import Duration exposing (Duration)
-import Element exposing (Element, alignBottom, alignRight, centerX, centerY, column, el, fill, fillPortion, height, moveUp, padding, px, row, shrink, spacing, table, text, width)
+import Element exposing (Element, alignBottom, alignRight, centerX, centerY, column, el, fill, fillPortion, height, moveUp, padding, paragraph, px, row, shrink, spacing, table, text, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -233,15 +233,11 @@ view model =
             , columns =
                 [ { width = shrink
                   , header = Element.none
-                  , view = \( a, _, _ ) -> a
+                  , view = \( a, _ ) -> a
                   }
                 , { width = shrink
                   , header = Element.none
-                  , view = \( _, a, _ ) -> a
-                  }
-                , { width = shrink
-                  , header = Element.none
-                  , view = \( _, _, a ) -> a
+                  , view = \( _, a ) -> a
                   }
                 ]
             }
@@ -265,53 +261,28 @@ view model =
         ]
 
 
-centralBlock : Model -> List ( Element Msg, Element Msg, Element Msg )
+centralBlock : Model -> List ( Element Msg, Element Msg )
 centralBlock model =
     let
-        firstLine : Duration -> String -> List (Element Msg) -> ( Element Msg, Element Msg, Element Msg )
-        firstLine duration label other =
-            ( el
-                [ Font.alignRight
-                , padding 8
-                , Border.widthEach { left = 0, right = 0, bottom = 1, top = 0 }
-                , height fill
+        firstLine : Duration -> String -> ( Element Msg, Element Msg )
+        firstLine duration label =
+            ( paragraph
+                [ padding 8
+                , Font.alignRight
+                , alignBottom
                 ]
-                (text (durationToString duration))
-            , column
+                [ text (durationToString duration) ]
+            , row
                 [ padding 8
                 , spacing 8
-                , Border.widthEach { left = 0, right = 0, bottom = 1, top = 0 }
+                , width fill
                 ]
-                (row [ spacing 8, width fill ]
-                    [ text label
-                    , let
-                        hline =
-                            el [ Border.widthXY 0 1, width (px 18), height (px 2) ] Element.none
-                      in
-                      row [ spacing 8, alignRight ]
-                        [ button (AddWorkTime Duration.minute)
-                            (el
-                                [ centerX
-                                , centerY
-                                , Element.inFront <| el [ Element.rotate (degrees 90) ] hline
-                                ]
-                                hline
-                            )
-                        , button (AddWorkTime (Duration.minutes -1))
-                            (el
-                                [ centerX
-                                , centerY
-                                ]
-                                hline
-                            )
-                        ]
-                    ]
-                    :: other
-                )
-            , Element.none
+                [ paragraph [ alignBottom ] [ text label ]
+                , plusMinusButtons
+                ]
             )
 
-        line : Duration -> String -> ( Element Msg, Element Msg, Element Msg )
+        line : Duration -> String -> ( Element Msg, Element Msg )
         line duration label =
             ( el
                 [ fontSize.small
@@ -324,12 +295,11 @@ centralBlock model =
                 , padding 8
                 ]
                 (text label)
-            , Element.none
             )
     in
     case model.currentState of
         Stopped ->
-            [ firstLine model.workTime "Worked" [] ]
+            [ firstLine model.workTime "Worked" ]
 
         Working ({ bankedBreakTime } as working) ->
             let
@@ -342,23 +312,32 @@ centralBlock model =
             in
             [ firstLine durationWorked
                 "Worked"
-                [ row
+            , ( Element.none
+              , row
                     [ fontSize.small
                     , spacing 8
+                    , padding 8
                     ]
-                    [ Input.text
-                        [ Background.color (Element.rgba 0 0 0 0)
-                        , padding 8
-                        , width (px 60)
-                        ]
-                        { text = model.divisor.string
-                        , onChange = Divisor
-                        , placeholder = Nothing
-                        , label = Input.labelLeft [] (text "/")
-                        }
-                    , el [ moveUp 4 ] (text "=")
+                    [ el [] <|
+                        Input.text
+                            [ Background.color (Element.rgba 0 0 0 0)
+                            , padding 8
+                            , width (px 60)
+                            ]
+                            { text = model.divisor.string
+                            , onChange = Divisor
+                            , placeholder = Nothing
+                            , label = Input.labelLeft [] (text "/")
+                            }
+                    , el [ moveUp 4 ] (text " =")
                     ]
-                ]
+              )
+            , let
+                hline : Element msg
+                hline =
+                    el [ width fill, Border.widthEach { left = 0, right = 0, bottom = 1, top = 0 } ] Element.none
+              in
+              ( hline, hline )
             , line
                 (durationWorked
                     |> Quantity.divideBy model.divisor.float
@@ -373,9 +352,35 @@ centralBlock model =
                 (RoundedTime endsOn) =
                     resting.endsOn
             in
-            [ firstLine (Duration.from model.now endsOn) "Rest" []
+            [ firstLine (Duration.from model.now endsOn) "Rest"
             , line model.workTime ("Worked of " ++ durationToString model.goal ++ " goal")
             ]
+
+
+plusMinusButtons : Element Msg
+plusMinusButtons =
+    let
+        hline : Element msg
+        hline =
+            el [ Border.widthXY 0 1, width (px 18), height (px 2) ] Element.none
+    in
+    row [ spacing 8, alignRight ]
+        [ button (AddWorkTime Duration.minute)
+            (el
+                [ centerX
+                , centerY
+                , Element.inFront <| el [ Element.rotate (degrees 90) ] hline
+                ]
+                hline
+            )
+        , button (AddWorkTime (Duration.minutes -1))
+            (el
+                [ centerX
+                , centerY
+                ]
+                hline
+            )
+        ]
 
 
 button : msg -> Element msg -> Element msg
